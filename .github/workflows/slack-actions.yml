@@ -29,6 +29,7 @@ jobs:
       - name: Notify Slack
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           SLACK_CHANNEL: "C054MTB7FHD"
         run: |
           # Get the pull request data
@@ -72,7 +73,7 @@ jobs:
 
           # If it's a review, add a comment to the Slack thread
           if [ "$GITHUB_EVENT_NAME" = "pull_request_review" ]; then
-            SLACK_THREAD_INFO=$(curl -s -X GET -H 'Content-type: application/json' --data "{\"channel\": \"$SLACK_CHANNEL\", \"ts\": \"$SLACK_THREAD_TS\", \"inclusive\": true}" -H "Authorization: Bearer ${secrets.SLACK_BOT_TOKEN}" "https://slack.com/api/conversations.history")
+            SLACK_THREAD_INFO=$(curl -s -X GET -H 'Content-type: application/json' --data "{\"channel\": \"$SLACK_CHANNEL\", \"ts\": \"$SLACK_THREAD_TS\", \"inclusive\": true}" -H "Authorization: Bearer $SLACK_BOT_TOKEN" "https://slack.com/api/conversations.history")
             THREAD_TS=$(echo "$SLACK_THREAD_INFO" | jq -r '.messages[0].ts')
             if [ "$THREAD_TS" = "null" ]; then
               THREAD_TS=$(curl -s -X POST -H 'Content-type: application/json' --data "{\"text\": \"*$PR_TITLE*\", \"channel\": \"$SLACK_CHANNEL\"}" $SLACK_WEBHOOK_URL | jq -r '.ts')
