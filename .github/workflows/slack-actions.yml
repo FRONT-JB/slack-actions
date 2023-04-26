@@ -3,25 +3,7 @@ name: "pull-request-workflow"
 on:
   pull_request:
     types:
-      [
-        assigned,
-        unassigned,
-        labeled,
-        unlabeled,
-        opened,
-        edited,
-        closed,
-        reopened,
-        synchronize,
-        converted_to_draft,
-        ready_for_review,
-        locked,
-        unlocked,
-        review_requested,
-        review_request_removed,
-        auto_merge_enabled,
-        auto_merge_disabled,
-      ]
+      [opened, edited, closed, reopened, ready_for_review, review_requested]
   pull_request_review:
     types: [submitted, edited, dismissed]
   pull_request_review_comment:
