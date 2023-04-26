@@ -66,8 +66,16 @@ jobs:
             MESSAGE=$(echo "$MESSAGE" | sed "s/@$USER/@$SLACK_USERNAME/g")
           done
 
-          # Send the message to Slack
-          curl -X POST -H 'Content-type: application/json' --data "{\"text\": \"$MESSAGE\"}" $SLACK_WEBHOOK_URL
+          # Send message to Slack
+          curl -X POST \
+            -H "Content-type: application/json" \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -d '{
+              "channel": "'"$SLACK_CHANNEL_ID"'",
+              "text": "'"$message"'",
+              "thread_ts": "'"$ts"'",
+              "unfurl_links": true
+            }' \
 
           # If it's a review, add a comment to the Slack thread
           if [ "$GITHUB_EVENT_NAME" = "pull_request_review" ]; then
