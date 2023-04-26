@@ -18,3 +18,6 @@ jobs:
           subscribe-reviews: true
           subscribe-pull-comments: true
           threading-comments: true
+      - if: github.event.action == "opened"
+        with:
+          footer: ${{ github.event.assignee.login }}|${{ github.event.requested_reviewers[0].login }}
