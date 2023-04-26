@@ -18,4 +18,4 @@ jobs:
           subscribe-reviews: true
           subscribe-pull-comments: true
           threading-comments: true
-          footer: ${{ github.event.assignee.login }}|${{ github.event.requested_reviewers[0].login }}
+          footer: ${{ github.event.assignee.login }}|${{ github.event.pull_request.requested_reviewers[0].login }}
