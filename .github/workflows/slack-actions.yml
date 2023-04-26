@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: hkusu/slack-integration@v1
         with:
-          slack-token: ${{ secrets.SLACK_TOKEN }}
+          slack-token: ${{ secrets.SLACK_BOT_TOKEN }}
           channel: "C054MTB7FHD"
           subscribe-pulls: true
           subscribe-reviews: true
