@@ -1,62 +1,78 @@
-name: Send PR Notification to Slack
+name: Slack notification for Pull Request
+
 on:
   pull_request:
-    types: [opened, edited]
-
-env:
-  SLACK_USERS: '{"FRONT-JB": "@U04602RGKRR", "jeonbg": "@U046CPX6QCR"}'
+    types: [opened, reopened, closed, edited, ready_for_review]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  issue_comment:
+    types: [created, edited, deleted]
 
 jobs:
-  notify_slack:
+  slack_notification:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: "14"
-
-      - name: Install Dependencies
-        run: npm install -g jq
-
-      - name: Send Notification to Slack
+      - name: Configure Git
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_EVENT_PATH: ${{ github.event_path }}
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_USERS: ${{ env.SLACK_USERS }}
         run: |
-          PULL_REQUEST_NUMBER=$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)
-          REPO_NAME=$(jq --raw-output .repository.name $GITHUB_EVENT_PATH)
+          git config user.name github-actions
+          git config user.email github-actions@github.com
 
-          PULL_REQUEST=$(curl --silent -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/$PULL_REQUEST_NUMBER")
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get -y install curl jq
 
-          PULL_REQUEST_REVIEW=$(curl --silent -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/$PULL_REQUEST_NUMBER/reviews")
+      - name: Notify Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          # Get the pull request data
+          PR_TITLE=$(jq -r '.pull_request.title' "$GITHUB_EVENT_PATH")
+          PR_BODY=$(jq -r '.pull_request.body' "$GITHUB_EVENT_PATH")
+          PR_COMMITS=$(jq -r '.pull_request.commits' "$GITHUB_EVENT_PATH")
+          PR_CREATED=$(jq -r '.pull_request.created_at' "$GITHUB_EVENT_PATH")
+          PR_URL=$(jq -r '.pull_request.html_url' "$GITHUB_EVENT_PATH")
 
-          PULL_REQUEST_COMMENTS=$(curl --silent -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$PULL_REQUEST_NUMBER/comments")
+          # Get the sender and user mapping
+          SENDER=$(jq -r '.sender.login' "$GITHUB_EVENT_PATH")
+          USER_MAPPING=$(cat user_mapping.json)
 
-          AUTHOR=$(echo $PULL_REQUEST | jq --raw-output .user.login)
-          TITLE=$(echo $PULL_REQUEST | jq --raw-output .title)
+          # Get the review data
+          if [ "$GITHUB_EVENT_NAME" = "pull_request_review" ]; then
+            REVIEW_STATE=$(jq -r '.review.state' "$GITHUB_EVENT_PATH")
+            REVIEW_BODY=$(jq -r '.review.body' "$GITHUB_EVENT_PATH")
+            REVIEW_URL=$(jq -r '.review.html_url' "$GITHUB_EVENT_PATH")
+          fi
 
-          BODY=$(echo $PULL_REQUEST | jq --raw-output .body)
-          COMMIT_COUNT=$(echo $PULL_REQUEST | jq --raw-output .commits)
+          # Build the message
+          MESSAGE="*New Pull Request:* <$PR_URL|$PR_TITLE>\n"
+          MESSAGE+="*$PR_CREATED* by @$SENDER\n"
+          MESSAGE+="*$PR_COMMITS commits*\n\n"
+          MESSAGE+="$PR_BODY\n\n"
 
-          CREATED_AT=$(echo $PULL_REQUEST | jq --raw-output .created_at)
+          # If it's a review, add the review data
+          if [ "$GITHUB_EVENT_NAME" = "pull_request_review" ]; then
+            MESSAGE+="*New Review:* <$REVIEW_URL|$REVIEW_STATE> by @$SENDER\n"
+            MESSAGE+="$REVIEW_BODY"
+          fi
 
-          REVIEWER_NAMES=$(echo $PULL_REQUEST_REVIEW | jq '.[].user.login')
-          USER_MAPPING=${SLACK_USERS}
-          SLACK_REVIEWERS=$(echo $REVIEWER_NAMES | jq -r '. as $arr | $arr | map(select(. != null and length > 0)) | map($arr | index(.) as $ix | env.SLACK_USERS | split(" ") | map(select(length > 0))[($ix % length)] ) | join(", ")')
+          # Map the GitHub usernames to Slack usernames
+          for USER in $(echo "$USER_MAPPING" | jq -r '. | keys | .[]'); do
+            SLACK_USERNAME=$(echo "$USER_MAPPING" | jq -r --arg user "$USER" '.[$user]')
+            MESSAGE=$(echo "$MESSAGE" | sed "s/@$USER/@$SLACK_USERNAME/g")
+          done
 
-          MESSAGE=$(cat <<EOF
-          {
-            "text": "New pull request opened in <$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/pull/$PULL_REQUEST_NUMBER|$REPO_NAME>: <$PULL_REQUEST.html_url|$TITLE>\nAuthor: @$AUTHOR\nReviewers: $SLACK_REVIEWERS\n\n$BODY\n\nCommits: $COMMIT_COUNT\nOpened at: $CREATED_AT"
-          }
-          EOF
-          )
+          # Send the message to Slack
+          curl -X POST -H 'Content-type: application/json' --data "{\"text\": \"$MESSAGE\"}" $SLACK_WEBHOOK_URL
 
-          curl -s -X POST -H "Content-Type: application/json" -d "$MESSAGE" "${SLACK_WEBHOOK_URL}"
+          # If it's a review, add a comment to the Slack thread
+          if [ "$GITHUB_EVENT_NAME" = "pull_request_review" ]; then
+            THREAD_TS=$(curl -s -X GET -H 'Content-type: application/json' --data "{\"channel\": \"$SLACK_CHANNEL\", \"ts\": \"$SLACK_THREAD_TS\"}" $SLACK_THREAD_INFO_URL | jq -r '.messages[0].ts')
+            COMMENT="*$REVIEW_STATE* by @$SENDER\n"
+            COMMENT+="$REVIEW_BODY"
+            curl -X POST -H 'Content-type: application/json' --data "{\"text\": \"$COMMENT\", \"thread_ts\": \"$THREAD_TS\"}" $SLACK_WEBHOOK_URL
+          fi
