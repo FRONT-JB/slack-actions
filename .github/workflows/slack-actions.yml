@@ -1,32 +1,60 @@
-name: Slack Integration
+name: Notify PR updates to Slack
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review, closed]
-  issues:
-    types: [opened, reopened, closed]
+    types: [opened, edited, reopened, synchronize]
   pull_request_review:
-    types: [submitted]
-  issue_comment:
-    types: [created]
+    types: [submitted, edited, dismissed]
+  pull_request_review_comment:
+    types: [created, edited, deleted]
+
+env:
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  USER_MAPPING: '{ "FRONT-JB": "@U04602RGKRR", "jeonbg": "@U046CPX6QCR" }'
 
 jobs:
-  slack-integration:
+  notify:
     runs-on: ubuntu-latest
     steps:
-      - uses: hkusu/slack-integration@v1
-        with:
-          slack-token: ${{ secrets.SLACK_BOT_TOKEN }}
-          channel: "C054MTB7FHD"
-          subscribe-pulls: true
-          subscribe-issues: true
-          subscribe-reviews: true
-          subscribe-pull-comments: true
-          subscribe-issue-comments: true
-          threading-comments: true
-          footer: "<@U04602RGKRR>"
+      - name: Check out code
+        uses: actions/checkout@v2
 
-      - name: Log GitHub context
-        env:
-          GITHUB_CONTEXT: ${{secrets.MEMBER_MAP[github.event.pull_request.requested_reviewers[0]]}}
-        run: echo "$GITHUB_CONTEXT"
+      - name: Get PR information
+        id: pr
+        uses: peter-evans/get-pull-request@v3.1.0
+        with:
+          repo-token: ${{ secrets.GH_TOKEN }}
+          pull_number: ${{ github.event.pull_request.number }}
+
+      - name: Get reviewer information
+        id: reviewer
+        uses: peter-evans/get-pull-request@v3.1.0
+        with:
+          repo-token: ${{ secrets.GH_TOKEN }}
+          pull_number: ${{ github.event.pull_request.number }}
+          include-reviews: true
+
+      - name: Notify to Slack
+        if: success()
+        run: |
+          pull_request_url=${{ steps.pr.outputs.url }}
+          pull_request_title=${{ steps.pr.outputs.title }}
+          pull_request_body=${{ steps.pr.outputs.body }}
+          pull_request_commits=${{ steps.pr.outputs.commits }}
+          pull_request_created=${{ steps.pr.outputs.created_at }}
+          reviewer_logins=$(echo "${{ steps.reviewer.outputs.reviews }}" | jq -r '.[].user.login')
+          reviewers=""
+          for reviewer_login in $reviewer_logins
+          do
+            if [ "$reviewers" != "" ]; then
+              reviewers="$reviewers, "
+            fi
+            if [ "$(echo "$USER_MAPPING" | jq -r ".\"$reviewer_login\"")" != "null" ]; then
+              reviewer_id=$(echo "$USER_MAPPING" | jq -r ".\"$reviewer_login\"")
+              reviewers="$reviewers$reviewer_id"
+            else
+              reviewers="$reviewers@$reviewer_login"
+            fi
+          done
+          message="{\"text\": \"<${pull_request_url}|${pull_request_title}>\\n\\n${pull_request_body}\\n\\nCommits: ${pull_request_commits}\\nOpened at: ${pull_request_created}\\nReviewers: ${reviewers}\"}"
+          curl -s -X POST -H "Content-Type: application/json" -d "$message" "${SLACK_WEBHOOK_URL}"
