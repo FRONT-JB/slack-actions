@@ -80,5 +80,5 @@ jobs:
             fi
             COMMENT="*$REVIEW_STATE* by <@$SENDER>\n"
             COMMENT+="$REVIEW_BODY"
-            curl -X POST -H 'Content-type: application/json' --data "{\"text\": \"$COMMENT\", \"channel\": \"$SLACK_CHANNEL\", \"thread_ts\": \"$THREAD_TS\"}" $SLACK_WEBHOOK_URL
+            curl -s -X GET -H 'Content-type: application/json' --data "{\"channel\": \"$SLACK_CHANNEL\", \"ts\": \"$SLACK_THREAD_TS\"}" $SLACK_THREAD_INFO_URL | jq -r '.messages[0].ts' | xargs -I {} -n1 curl -X POST -H 'Content-type: application/json' --data "{\"text\": \"$COMMENT\", \"thread_ts\": \"{}\"}" $SLACK_WEBHOOK_URL
           fi
