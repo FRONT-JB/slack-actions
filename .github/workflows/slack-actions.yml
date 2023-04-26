@@ -18,4 +18,4 @@ jobs:
           subscribe-reviews: true
           subscribe-pull-comments: true
           threading-comments: true
-          footer: ${{ github.event.pull_request.assignee.login }} from review request ${{ github.event.pull_request.requested_reviewers[0].login }}
+          footer: <${{@U04602RGKRR}}>
