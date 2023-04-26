@@ -1,63 +1,62 @@
-name: Notify PR Activities to Slack
-
+name: Send PR Notification to Slack
 on:
   pull_request:
-    types: [opened, reopened, closed, ready_for_review]
-  pull_request_review:
-    types: [submitted]
-  issue_comment:
-    types: [created]
+    types: [opened, edited]
 
 env:
-  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-  USER_MAPPING: '{"githubId1": "@slackId1", "githubId2": "@slackId2"}'
+  SLACK_USERS: '{"FRONT-JB": "@U04602RGKRR", "jeonbg": "@U046CPX6QCR"}'
 
 jobs:
-  notify:
+  notify_slack:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v2
 
-      - name: Map GitHub IDs to Slack IDs
-        run: |
-          SLACK_USERS=$(echo "$USER_MAPPING" | jq -r 'to_entries|map("\(.key)=\(.value)")|.[]')
-          SLACK_USERS="${SLACK_USERS//$'\n'/ }"
-          echo "::set-env name=SLACK_USERS::$SLACK_USERS"
-
-      - name: Get PR Information
-        id: pr-info
-        uses: sdras/github-action-get-PR-details@v1.5.0
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          node-version: "14"
 
-      - name: Format PR Information
-        id: pr-format
+      - name: Install Dependencies
+        run: npm install -g jq
+
+      - name: Send Notification to Slack
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_USERS: ${{ env.SLACK_USERS }}
         run: |
-          PR_TITLE=$(echo "${{ steps.pr-info.outputs.PR_title }}" | sed 's/"/\\"/g')
-          PR_BODY=$(echo "${{ steps.pr-info.outputs.PR_body }}" | sed 's/"/\\"/g')
-          PR_URL=${{ steps.pr-info.outputs.PR_url }}
-          PR_COMMITS=${{ steps.pr-info.outputs.PR_commits }}
+          PULL_REQUEST_NUMBER=$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)
+          REPO_NAME=$(jq --raw-output .repository.name $GITHUB_EVENT_PATH)
 
-          REVIEWER=$(echo "${{ steps.pr-info.outputs.PR_reviewer }}" | sed 's/"/\\"/g')
-          REVIEWER=${{ env.SLACK_USERS[${REVIEWER}] }}
+          PULL_REQUEST=$(curl --silent -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/$PULL_REQUEST_NUMBER")
 
-          CREATED_AT=$(echo "${{ steps.pr-info.outputs.PR_created_at }}" | sed 's/"/\\"/g')
+          PULL_REQUEST_REVIEW=$(curl --silent -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/$PULL_REQUEST_NUMBER/reviews")
 
-          if [ -z "$REVIEWER" ]; then
-            MESSAGE="*New PR opened*\n*$PR_TITLE*\n$PR_BODY\n$PR_URL\nCommits: $PR_COMMITS\nCreated at: $CREATED_AT"
-          else
-            MESSAGE="<$PR_URL|*New review*> on *$PR_TITLE* by $REVIEWER\nCreated at: $CREATED_AT"
-          fi
+          PULL_REQUEST_COMMENTS=$(curl --silent -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$PULL_REQUEST_NUMBER/comments")
 
-          echo "::set-env name=MESSAGE::$MESSAGE"
+          AUTHOR=$(echo $PULL_REQUEST | jq --raw-output .user.login)
+          TITLE=$(echo $PULL_REQUEST | jq --raw-output .title)
 
-      - name: Post message to Slack
-        run: |
-          message="{\"text\": \"$MESSAGE\"}"
-          if [ ! -z "$REVIEWER" ]; then
-            message="{\"text\": \"$MESSAGE\", \"thread_ts\": \"${{ steps.pr-info.outputs.PR_id }}\"}"
-          fi
+          BODY=$(echo $PULL_REQUEST | jq --raw-output .body)
+          COMMIT_COUNT=$(echo $PULL_REQUEST | jq --raw-output .commits)
 
-          curl -s -X POST -H "Content-Type: application/json" -d "$message" "${{ env.SLACK_WEBHOOK_URL }}"
+          CREATED_AT=$(echo $PULL_REQUEST | jq --raw-output .created_at)
+
+          REVIEWER_NAMES=$(echo $PULL_REQUEST_REVIEW | jq '.[].user.login')
+          USER_MAPPING=${SLACK_USERS}
+          SLACK_REVIEWERS=$(echo $REVIEWER_NAMES | jq -r '. as $arr | $arr | map(select(. != null and length > 0)) | map($arr | index(.) as $ix | env.SLACK_USERS | split(" ") | map(select(length > 0))[($ix % length)] ) | join(", ")')
+
+          MESSAGE=$(cat <<EOF
+          {
+            "text": "New pull request opened in <$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/pull/$PULL_REQUEST_NUMBER|$REPO_NAME>: <$PULL_REQUEST.html_url|$TITLE>\nAuthor: @$AUTHOR\nReviewers: $SLACK_REVIEWERS\n\n$BODY\n\nCommits: $COMMIT_COUNT\nOpened at: $CREATED_AT"
+          }
+          EOF
+          )
+
+          curl -s -X POST -H "Content-Type: application/json" -d "$MESSAGE" "${SLACK_WEBHOOK_URL}"
