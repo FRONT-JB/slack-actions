@@ -1,50 +1,19 @@
-name: "pull-request-workflow"
+name: Slack Integration
 
 on:
   pull_request:
-    types:
-      [
-        assigned,
-        unassigned,
-        labeled,
-        unlabeled,
-        opened,
-        edited,
-        closed,
-        reopened,
-        synchronize,
-        converted_to_draft,
-        ready_for_review,
-        locked,
-        unlocked,
-        review_requested,
-        review_request_removed,
-        auto_merge_enabled,
-        auto_merge_disabled,
-      ]
+    types: [opened, reopened, ready_for_review, closed]
   pull_request_review:
-    types: [submitted, edited, dismissed]
-  pull_request_review_comment:
-    types: [created, edited, deleted]
-  issue_comment:
-    types: [created, edited, deleted]
-  schedule:
-    - cron: "0 10 * * 1-5"
+    types: [submitted]
 
 jobs:
-  pull-request-workflow:
+  slack-integration:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Run Action
-        uses: cakarci/pull-request-workflow@v1
+      - uses: hkusu/slack-integration@v1
         with:
-          github-token: ${{ secrets.GH_TOKEN }}
-          slack-token: ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: "C054MTB7FHD"
-
-      - name: Log GitHub context
-        env:
-          GITHUB_CONTEXT: ${{ toJson(github) }}
-        run: echo "$GITHUB_CONTEXT"
+          slack-token: ${{ secrets.SLACK_TOKEN }}
+          channel: "C054MTB7FHD"
+          subscribe-pulls: true
+          subscribe-reviews: true
+          subscribe-pull-comments: true
