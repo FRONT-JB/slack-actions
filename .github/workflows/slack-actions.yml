@@ -50,13 +50,13 @@ jobs:
 
           # Build the message
           MESSAGE="*New Pull Request:* <$PR_URL|$PR_TITLE>\n"
-          MESSAGE+="*$PR_CREATED* by @$SENDER\n"
+          MESSAGE+="*$PR_CREATED* by <@$SENDER>\n"
           MESSAGE+="*$PR_COMMITS commits*\n\n"
           MESSAGE+="$PR_BODY\n\n"
 
           # If it's a review, add the review data
           if [ "$GITHUB_EVENT_NAME" = "pull_request_review" ]; then
-            MESSAGE+="*New Review:* <$REVIEW_URL|$REVIEW_STATE> by @$SENDER\n"
+            MESSAGE+="*New Review:* <$REVIEW_URL|$REVIEW_STATE> by <@$SENDER>\n"
             MESSAGE+="$REVIEW_BODY"
           fi
 
@@ -72,7 +72,7 @@ jobs:
           # If it's a review, add a comment to the Slack thread
           if [ "$GITHUB_EVENT_NAME" = "pull_request_review" ]; then
             THREAD_TS=$(curl -s -X GET -H 'Content-type: application/json' --data "{\"channel\": \"$SLACK_CHANNEL\", \"ts\": \"$SLACK_THREAD_TS\"}" $SLACK_THREAD_INFO_URL | jq -r '.messages[0].ts')
-            COMMENT="*$REVIEW_STATE* by @$SENDER\n"
+            COMMENT="*$REVIEW_STATE* by <@$SENDER>\n"
             COMMENT+="$REVIEW_BODY"
             curl -X POST -H 'Content-type: application/json' --data "{\"text\": \"$COMMENT\", \"thread_ts\": \"$THREAD_TS\"}" $SLACK_WEBHOOK_URL
           fi
