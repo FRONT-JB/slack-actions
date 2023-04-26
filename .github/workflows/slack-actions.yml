@@ -1,58 +1,63 @@
-name: Notify PR updates to Slack
+name: Notify PR Activities to Slack
 
 on:
   pull_request:
-    types: [opened, edited, reopened, synchronize]
+    types: [opened, reopened, closed, ready_for_review]
   pull_request_review:
-    types: [submitted, edited, dismissed]
-  pull_request_review_comment:
-    types: [created, edited, deleted]
+    types: [submitted]
+  issue_comment:
+    types: [created]
 
 env:
   SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-  USER_MAPPING: '{ "FRONT-JB": "@U04602RGKRR", "jeonbg": "@U046CPX6QCR" }'
+  USER_MAPPING: '{"githubId1": "@slackId1", "githubId2": "@slackId2"}'
 
 jobs:
   notify:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Check out code
+      - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Get PR information
-        id: pr
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          head: ${{ github.head_ref }}
-          base: ${{ github.base_ref }}
-          title: ${{ steps.pr_title.outputs.title }}
-          body: ${{ steps.pr_body.outputs.body }}
-          assignees: ${{ steps.pr_reviewers.outputs.assignees }}
-          reviewers: ${{ steps.pr_reviewers.outputs.reviewers }}
-          labels: ${{ steps.pr_labels.outputs.labels }}
-
-      - name: Notify to Slack
-        if: success()
+      - name: Map GitHub IDs to Slack IDs
         run: |
-          pull_request_url=${{ steps.pr.outputs.url }}
-          pull_request_title=${{ steps.pr.outputs.title }}
-          pull_request_body=${{ steps.pr.outputs.body }}
-          pull_request_commits=${{ steps.pr.outputs.commits }}
-          pull_request_created=${{ steps.pr.outputs.created_at }}
-          reviewer_logins=$(echo "${{ steps.reviewer.outputs.reviews }}" | jq -r '.[].user.login')
-          reviewers=""
-          for reviewer_login in $reviewer_logins
-          do
-            if [ "$reviewers" != "" ]; then
-              reviewers="$reviewers, "
-            fi
-            if [ "$(echo "$USER_MAPPING" | jq -r ".\"$reviewer_login\"")" != "null" ]; then
-              reviewer_id=$(echo "$USER_MAPPING" | jq -r ".\"$reviewer_login\"")
-              reviewers="$reviewers$reviewer_id"
-            else
-              reviewers="$reviewers@$reviewer_login"
-            fi
-          done
-          message="{\"text\": \"<${pull_request_url}|${pull_request_title}>\\n\\n${pull_request_body}\\n\\nCommits: ${pull_request_commits}\\nOpened at: ${pull_request_created}\\nReviewers: ${reviewers}\"}"
-          curl -s -X POST -H "Content-Type: application/json" -d "$message" "${SLACK_WEBHOOK_URL}"
+          SLACK_USERS=$(echo "$USER_MAPPING" | jq -r 'to_entries|map("\(.key)=\(.value)")|.[]')
+          SLACK_USERS="${SLACK_USERS//$'\n'/ }"
+          echo "::set-env name=SLACK_USERS::$SLACK_USERS"
+
+      - name: Get PR Information
+        id: pr-info
+        uses: sdras/github-action-get-PR-details@v1.5.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Format PR Information
+        id: pr-format
+        run: |
+          PR_TITLE=$(echo "${{ steps.pr-info.outputs.PR_title }}" | sed 's/"/\\"/g')
+          PR_BODY=$(echo "${{ steps.pr-info.outputs.PR_body }}" | sed 's/"/\\"/g')
+          PR_URL=${{ steps.pr-info.outputs.PR_url }}
+          PR_COMMITS=${{ steps.pr-info.outputs.PR_commits }}
+
+          REVIEWER=$(echo "${{ steps.pr-info.outputs.PR_reviewer }}" | sed 's/"/\\"/g')
+          REVIEWER=${{ env.SLACK_USERS[${REVIEWER}] }}
+
+          CREATED_AT=$(echo "${{ steps.pr-info.outputs.PR_created_at }}" | sed 's/"/\\"/g')
+
+          if [ -z "$REVIEWER" ]; then
+            MESSAGE="*New PR opened*\n*$PR_TITLE*\n$PR_BODY\n$PR_URL\nCommits: $PR_COMMITS\nCreated at: $CREATED_AT"
+          else
+            MESSAGE="<$PR_URL|*New review*> on *$PR_TITLE* by $REVIEWER\nCreated at: $CREATED_AT"
+          fi
+
+          echo "::set-env name=MESSAGE::$MESSAGE"
+
+      - name: Post message to Slack
+        run: |
+          message="{\"text\": \"$MESSAGE\"}"
+          if [ ! -z "$REVIEWER" ]; then
+            message="{\"text\": \"$MESSAGE\", \"thread_ts\": \"${{ steps.pr-info.outputs.PR_id }}\"}"
+          fi
+
+          curl -s -X POST -H "Content-Type: application/json" -d "$message" "${{ env.SLACK_WEBHOOK_URL }}"
