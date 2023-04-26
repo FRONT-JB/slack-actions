@@ -1,17 +1,38 @@
-name: SLACK-NOTIFICATION
+name: "pull-request-workflow"
+
 on:
   pull_request:
-    types: [opened, reopened]
+    types:
+      [
+        assigned,
+        labeled,
+        opened,
+        edited,
+        closed,
+        reopened,
+        synchronize,
+        review_requested,
+        review_request_removed,
+      ]
+  pull_request_review:
+    types: "submitted"
+  pull_request_review_comment:
+    types: [created, edited]
+  issue_comment:
+    types: [created, edited]
+  schedule:
+    - cron: "0 10 * * 1-5"
 
 jobs:
-  notification:
+  pull_request_workflow:
     runs-on: ubuntu-latest
-    name: slack-notification
+    name: A job that notifies slack on PR events
     steps:
-      - uses: 8398a7/action-slack@v3
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Run pull request workflow
+        uses: cakarci/pull-request-workflow@v1
         with:
-          status: ${{ job.status }}
-          fields: repo,message,commit,author,action,eventName,ref,workflow,job,took,pullRequest # selectable (default: repo,message)
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }} # required
-        if: always() # Pick up events even if the job fails or is canceled.
+          github-token: ${{ secrets.GH_TOKEN }}
+          slack-token: ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: "github-noti"
