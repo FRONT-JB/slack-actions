@@ -32,19 +32,15 @@ on:
     - cron: "0 10 * * 1-5"
 
 jobs:
-  pull-request-workflow:
+  pull_request_workflow:
     runs-on: ubuntu-latest
+    name: A job that notifies slack on PR events
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Run Action
-        uses: ./
+      - name: Run pull request workflow
+        uses: cakarci/pull-request-workflow@v1
         with:
           github-token: ${{ secrets.GH_TOKEN }}
           slack-token: ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: "C04LNJJUCKS"
-
-      - name: Log GitHub context
-        env:
-          GITHUB_CONTEXT: ${{ toJson(github) }}
-        run: echo "$GITHUB_CONTEXT"
+          slack-channel-id: "C054M60A3V2"
