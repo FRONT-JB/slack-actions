@@ -1,9 +1,9 @@
 {
   "teamName": "FRONTEND TEAM",
-  "githubUserNames": ["front-jb", "scakarci", "cakarci"],
+  "githubUserNames": ["front-jb", "jeonbg", "cakarci"],
   "githubSlackUserMapper": {
     "front-jb": "U04602RGKRR",
-    "scakarci": "U04LNHEVA48",
+    "jeonbg": "U046CPX6QCR",
     "cakarci": "U035MNNF8LW"
   },
   "remindAfter": 12
