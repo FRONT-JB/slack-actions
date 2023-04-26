@@ -25,3 +25,8 @@ jobs:
           subscribe-issue-comments: true
           threading-comments: true
           footer: "<@U04602RGKRR>"
+
+      - name: Log GitHub context
+        env:
+          GITHUB_CONTEXT: ${{secrets.MEMBER_MAP[github.event.pull_request.requested_reviewers[0]]}}
+        run: echo "$GITHUB_CONTEXT"
