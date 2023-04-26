@@ -23,16 +23,14 @@ jobs:
         id: pr
         uses: peter-evans/create-pull-request@v5
         with:
-          repo-token: ${{ secrets.GH_TOKEN }}
-          pull_number: ${{ github.event.pull_request.number }}
-
-      - name: Get reviewer information
-        id: reviewer
-        uses: peter-evans/create-pull-request@v5
-        with:
-          repo-token: ${{ secrets.GH_TOKEN }}
-          pull_number: ${{ github.event.pull_request.number }}
-          include-reviews: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          head: ${{ github.head_ref }}
+          base: ${{ github.base_ref }}
+          title: ${{ steps.pr_title.outputs.title }}
+          body: ${{ steps.pr_body.outputs.body }}
+          assignees: ${{ steps.pr_reviewers.outputs.assignees }}
+          reviewers: ${{ steps.pr_reviewers.outputs.reviewers }}
+          labels: ${{ steps.pr_labels.outputs.labels }}
 
       - name: Notify to Slack
         if: success()
