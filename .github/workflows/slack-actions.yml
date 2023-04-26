@@ -17,3 +17,4 @@ jobs:
           subscribe-pulls: true
           subscribe-reviews: true
           subscribe-pull-comments: true
+          threading-comments: true
