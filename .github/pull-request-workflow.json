@@ -1,8 +1,8 @@
 {
   "teamName": "FRONTEND TEAM",
-  "githubUserNames": ["front-jb", "jeonbg", "cakarci"],
+  "githubUserNames": ["FRONT-JB", "jeonbg", "cakarci"],
   "githubSlackUserMapper": {
-    "front-jb": "U04602RGKRR",
+    "FRONT-JB": "U04602RGKRR",
     "jeonbg": "U046CPX6QCR",
     "cakarci": "U035MNNF8LW"
   },
