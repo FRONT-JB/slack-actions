@@ -21,14 +21,14 @@ jobs:
 
       - name: Get PR information
         id: pr
-        uses: peter-evans/get-pull-request@v3.1.0
+        uses: peter-evans/get-pull-request@v3.2.0
         with:
           repo-token: ${{ secrets.GH_TOKEN }}
           pull_number: ${{ github.event.pull_request.number }}
 
       - name: Get reviewer information
         id: reviewer
-        uses: peter-evans/get-pull-request@v3.1.0
+        uses: peter-evans/get-pull-request@v3.2.0
         with:
           repo-token: ${{ secrets.GH_TOKEN }}
           pull_number: ${{ github.event.pull_request.number }}
