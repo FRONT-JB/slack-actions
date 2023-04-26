@@ -39,7 +39,7 @@ jobs:
 
           # Get the sender and user mapping
           SENDER=$(jq -r '.sender.login' "$GITHUB_EVENT_PATH")
-          USER_MAPPING=$(cat ./github/user_mapping.json)
+          USER_MAPPING=$(cat .github/user_mapping.json)
 
           # Get the review data
           if [ "$GITHUB_EVENT_NAME" = "pull_request_review" ]; then
