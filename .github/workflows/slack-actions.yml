@@ -76,6 +76,7 @@ jobs:
               "thread_ts": "'"$ts"'",
               "unfurl_links": true
             }' \
+            https://slack.com/api/chat.postMessage
 
           # If it's a review, add a comment to the Slack thread
           if [ "$GITHUB_EVENT_NAME" = "pull_request_review" ]; then
