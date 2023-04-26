@@ -38,7 +38,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Run Action
-        uses: ./
+        uses: cakarci/pull-request-workflow@v1
         with:
           github-token: ${{ secrets.GH_TOKEN }}
           slack-token: ${{ secrets.SLACK_BOT_TOKEN }}
