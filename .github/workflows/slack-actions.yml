@@ -18,4 +18,4 @@ jobs:
           subscribe-reviews: true
           subscribe-pull-comments: true
           threading-comments: true
-          footer: <${{@U04602RGKRR}}>
+          footer: "<@U04602RGKRR>"
