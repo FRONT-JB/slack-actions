@@ -3,8 +3,12 @@ name: Slack Integration
 on:
   pull_request:
     types: [opened, reopened, ready_for_review, closed]
+  issues:
+    types: [opened, reopened, closed]
   pull_request_review:
     types: [submitted]
+  issue_comment:
+    types: [created]
 
 jobs:
   slack-integration:
@@ -15,7 +19,9 @@ jobs:
           slack-token: ${{ secrets.SLACK_BOT_TOKEN }}
           channel: "C054MTB7FHD"
           subscribe-pulls: true
+          subscribe-issues: true
           subscribe-reviews: true
           subscribe-pull-comments: true
+          subscribe-issue-comments: true
           threading-comments: true
           footer: "<@U04602RGKRR>"
