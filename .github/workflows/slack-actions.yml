@@ -29,6 +29,7 @@ jobs:
       - name: Notify Slack
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_CHANNEL: my-channel
         run: |
           # Get the pull request data
           PR_TITLE=$(jq -r '.pull_request.title' "$GITHUB_EVENT_PATH")
@@ -39,7 +40,7 @@ jobs:
 
           # Get the sender and user mapping
           SENDER=$(jq -r '.sender.login' "$GITHUB_EVENT_PATH")
-          USER_MAPPING=$(cat .github/user_mapping.json)
+          USER_MAPPING=$(cat user_mapping.json)
 
           # Get the review data
           if [ "$GITHUB_EVENT_NAME" = "pull_request_review" ]; then
@@ -50,13 +51,13 @@ jobs:
 
           # Build the message
           MESSAGE="*New Pull Request:* <$PR_URL|$PR_TITLE>\n"
-          MESSAGE+="*$PR_CREATED* by <@$SENDER>\n"
+          MESSAGE+="*$PR_CREATED* by @$SENDER\n"
           MESSAGE+="*$PR_COMMITS commits*\n\n"
           MESSAGE+="$PR_BODY\n\n"
 
           # If it's a review, add the review data
           if [ "$GITHUB_EVENT_NAME" = "pull_request_review" ]; then
-            MESSAGE+="*New Review:* <$REVIEW_URL|$REVIEW_STATE> by <@$SENDER>\n"
+            MESSAGE+="*New Review:* <$REVIEW_URL|$REVIEW_STATE> by @$SENDER\n"
             MESSAGE+="$REVIEW_BODY"
           fi
 
@@ -71,8 +72,13 @@ jobs:
 
           # If it's a review, add a comment to the Slack thread
           if [ "$GITHUB_EVENT_NAME" = "pull_request_review" ]; then
-            THREAD_TS=$(curl -s -X GET -H 'Content-type: application/json' --data "{\"channel\": \"$SLACK_CHANNEL\", \"ts\": \"$SLACK_THREAD_TS\"}" $SLACK_THREAD_INFO_URL | jq -r '.messages[0].ts')
-            COMMENT="*$REVIEW_STATE* by <@$SENDER>\n"
+            SLACK_THREAD_INFO=$(curl -s -X GET -H 'Content-type: application/json' --data "{\"channel\": \"$SLACK_CHANNEL\", \"ts\": \"$SLACK_THREAD_TS\"}" $SLACK_THREAD_INFO_URL)
+            THREAD_TS=$(echo "$SLACK_THREAD_INFO" | jq -r '.messages[0].ts')
+            if [ "$THREAD_TS" = "null" ]; then
+              THREAD_TS=$(curl -s -X POST -H 'Content-type: application/json' --data "{\"text\": \"*$PR_TITLE*\", \"channel\": \"$SLACK_CHANNEL\"}" $SLACK_WEBHOOK_URL | jq -r '.ts')
+              curl -X POST -H 'Content-type: application/json' --data "{\"text\": \"<$PR_URL|Pull Request> has received a review by @$SENDER\", \"channel\": \"$SLACK_CHANNEL\", \"thread_ts\": \"$THREAD_TS\"}" $SLACK_WEBHOOK_URL
+            fi
+            COMMENT="*$REVIEW_STATE* by @$SENDER\n"
             COMMENT+="$REVIEW_BODY"
-            curl -X POST -H 'Content-type: application/json' --data "{\"text\": \"$COMMENT\", \"thread_ts\": \"$THREAD_TS\"}" $SLACK_WEBHOOK_URL
+            curl -X POST -H 'Content-type: application/json' --data "{\"text\": \"$COMMENT\", \"channel\": \"$SLACK_CHANNEL\", \"thread_ts\": \"$THREAD_TS\"}" $SLACK_WEBHOOK_URL
           fi
